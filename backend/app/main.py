@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 from tortoise.contrib.fastapi import register_tortoise
 import sys
 import os
@@ -12,6 +13,9 @@ from app.api.v1 import auth
 import uvicorn
 
 app = FastAPI(title=settings.PROJECT_NAME)
+
+# 挂载静态文件
+app.mount("/static",StaticFiles(directory="static"), name="static")
 
 # CORS配置
 app.add_middleware(

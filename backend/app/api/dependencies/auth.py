@@ -6,6 +6,10 @@ from ...crud.user import get_user_by_username
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
+"""
+处理认证相关的依赖项，主要用于验证用户的token和获取当前登录用户
+"""
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

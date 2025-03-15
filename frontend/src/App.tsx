@@ -4,6 +4,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
 
+/*
+路由配置
+定义了React应用的页面导航结构
+ */
 function App() {
     return (
         <Router>

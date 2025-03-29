@@ -12,28 +12,28 @@ const NotificationCenter: React.FC = () => {
     const [visible, setVisible] = useState(false);
     const [selectedNotifications, setSelectedNotifications] = useState<number[]>([]);
 
-    useEffect(() => {
-        loadNotifications();
-        loadUnreadCount();
-    }, []);
-
-    const loadNotifications = async () => {
-        try {
-            const response = await notificationApi.getNotifications();
-            setNotifications(response.data);
-        } catch (error) {
-            message.error('加载通知失败');
-        }
-    };
-
     const loadUnreadCount = async () => {
         try {
             const response = await notificationApi.getUnreadCount();
-            setUnreadCount(response.data);
+            setUnreadCount(response);
         } catch (error) {
             message.error('加载未读数量失败');
         }
     };
+
+    useEffect(() => {
+        const loadNotifications = async () => {
+            try {
+                const response = await notificationApi.getNotifications();
+                setNotifications(response);
+            } catch (error) {
+                message.error('加载通知失败');
+            }
+        };
+
+        loadNotifications();
+        loadUnreadCount();
+    }, []);
 
     const handleMarkAsRead = async (notificationId: number) => {
         try {

@@ -1,8 +1,9 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum
-from sqlalchemy.orm import relationship
-from app.database import Base
+from tortoise import fields
+from tortoise.models import Model
+from tortoise.contrib.pydantic import pydantic_model_creator
 import enum
+
 
 class NotificationType(str, enum.Enum):
     MUTE = "mute"
@@ -11,14 +12,24 @@ class NotificationType(str, enum.Enum):
     ADMIN = "admin"
     TRANSFER = "transfer"
 
-class Notification(Base):
-    __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    type = Column(Enum(NotificationType))
-    content = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    read = Column(Boolean, default=False)
+class Notification(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='notifications')
+    type = fields.CharEnumField(NotificationType)
+    content = fields.CharField(max_length=255)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    read = fields.BooleanField(default=False)
 
-    user = relationship("User", back_populates="notifications") 
+    class Meta:
+        table = "notifications"
+        table_description = "通知表"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.type.value}: {self.content}"
+
+
+# 创建Pydantic模型用于API
+Notification_Pydantic = pydantic_model_creator(Notification, name="Notification")
+NotificationIn_Pydantic = pydantic_model_creator(Notification, name="NotificationIn", exclude_readonly=True) 

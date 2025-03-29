@@ -10,12 +10,30 @@ const Login: React.FC = () => {
 
     const onFinish = async (values: LoginForm) => {
         try {
-            const response = await authApi.login(values);
-            localStorage.setItem('token', response.data.access_token);
-            message.success('登录成功');
-            navigate('/chat');
-        } catch (error) {
-            message.error('登录失败，请检查用户名和密码');
+            console.log('开始登录流程');
+            const response = await authApi.login(values.username, values.password);
+            console.log('登录响应:', response);
+            
+            if (response.access_token) {
+                console.log('保存token');
+                localStorage.setItem('token', response.access_token);
+                
+                console.log('获取用户信息');
+                const user = await authApi.getCurrentUser();
+                console.log('用户信息:', user);
+                
+                message.success('登录成功');
+                navigate('/chat');
+            } else {
+                message.error('登录失败：未获取到token');
+            }
+        } catch (error: any) {
+            console.error('登录失败:', error);
+            if (error.response?.data?.detail) {
+                message.error(error.response.data.detail);
+            } else {
+                message.error('登录失败，请检查用户名和密码');
+            }
         }
     };
 

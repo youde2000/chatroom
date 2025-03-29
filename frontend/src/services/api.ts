@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
-import { User, ChatRoom, Message, LoginForm, RegisterForm, ChatRoomForm, MessageForm, MuteRecord, Notification, AnnouncementHistory } from '../types';
+import { User, ChatRoom, Message, ChatRoomForm, MessageForm, MuteRecord, Notification, AnnouncementHistory } from '../types';
 
 /*
 axios是一个网络请求库，类似于Ajax，用于处理HTTP请求
@@ -57,11 +57,53 @@ api.interceptors.response.use(
 
 // 认证相关API
 export const authApi = {
-    login: (username: string, password: string) => 
-        api.post<{ access_token: string }>('/auth/login', { username, password }),
-    register: (username: string, email: string, password: string) => 
-        api.post('/auth/register', { username, email, password }),
-    getCurrentUser: () => api.get<User>('/auth/me'),
+    login: (username: string, password: string): Promise<{ access_token: string }> => {
+        console.log('发送登录请求:', { username, password });
+        return api.post('/auth/login', new URLSearchParams({
+            username,
+            password
+        }), {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        }).then(response => {
+            console.log('登录响应:', response);
+            return response.data;
+        }).catch(error => {
+            alert("登录请求失败")
+            console.error('登录请求失败:', error);
+            throw error;
+        });
+    },
+    register: (username: string, email: string, password: string): Promise<void> => {
+        console.log('发送注册请求:', { username, email, password });
+        return api.post('/auth/register', { username, email, password })
+            .then(response => {
+                console.log('注册请求成功:', response);
+                return Promise.resolve();
+            })
+            .catch(error => {
+                console.error('注册请求失败:', error);
+                if (error.response) {
+                    console.error('错误响应数据:', error.response.data);
+                    console.error('错误状态码:', error.response.status);
+                    console.error('错误头信息:', error.response.headers);
+                }
+                throw error;
+            });
+    },
+    getCurrentUser: (): Promise<User> => {
+        console.log('获取当前用户信息');
+        return api.get('/auth/me')
+            .then(response => {
+                console.log('获取用户信息成功:', response);
+                return response.data;
+            })
+            .catch(error => {
+                console.error('获取用户信息失败:', error);
+                throw error;
+            });
+    },
 };
 
 // 聊天室相关API
@@ -73,10 +115,10 @@ export const chatRoomApi = {
     join: (id: number, password?: string): Promise<ChatRoom> => api.post(`/chat-rooms/${id}/join`, { password }),
     leave: (id: number): Promise<void> => api.post(`/chat-rooms/${id}/leave`),
     delete: (id: number): Promise<void> => api.delete(`/chat-rooms/${id}`),
-    updateAnnouncement: (roomId: number, announcement: string) => 
+    updateAnnouncement: (roomId: number, announcement: string): Promise<void> => 
         api.put(`/chat-rooms/${roomId}/announcement`, { announcement }),
-    getAnnouncement: (roomId: number) => 
-        api.get<{ announcement: string; updated_at: string }>(`/chat-rooms/${roomId}/announcement`),
+    getAnnouncement: (roomId: number): Promise<{ announcement: string; updated_at: string }> => 
+        api.get(`/chat-rooms/${roomId}/announcement`),
     getAnnouncementHistory: (
         roomId: number,
         offset: number = 0,
@@ -85,7 +127,7 @@ export const chatRoomApi = {
         startDate?: string,
         endDate?: string,
         updatedById?: number
-    ) => api.get<{ items: AnnouncementHistory[]; total: number }>(
+    ): Promise<{ items: AnnouncementHistory[]; total: number }> => api.get(
         `/chat-rooms/${roomId}/announcement/history`,
         { 
             params: { 
@@ -106,7 +148,7 @@ export const chatRoomApi = {
         sortOrder: 'asc' | 'desc' = 'desc',
         offset: number = 0,
         limit: number = 10
-    ) => api.get<{ items: ChatRoom[]; total: number }>(
+    ): Promise<{ items: ChatRoom[]; total: number }> => api.get(
         '/chat-rooms/search',
         { 
             params: { 
@@ -120,29 +162,33 @@ export const chatRoomApi = {
             } 
         }
     ),
-    getSuggestions: (searchText: string) => 
-        api.get<ChatRoom[]>('/chat-rooms/suggestions', { 
+    getSuggestions: (searchText: string): Promise<ChatRoom[]> => 
+        api.get('/chat-rooms/suggestions', { 
             params: { search_text: searchText } 
         }),
 };
 
 // 消息相关API
 export const messageApi = {
-    send: (roomId: number, data: MessageForm): Promise<Message> => api.post(`/chat-rooms/${roomId}/messages`, data),
-    getMessages: (roomId: number, offset: number, limit: number): Promise<Message[]> => 
-        api.get(`/chat-rooms/${roomId}/messages`, { params: { offset, limit } }),
+    send: (roomId: number, data: MessageForm): Promise<Message> => 
+        api.post(`/chat-rooms/${roomId}/messages`, data),
+    getList: (roomId: number): Promise<Message[]> => 
+        api.get(`/chat-rooms/${roomId}/messages`),
     uploadImage: (roomId: number, file: File): Promise<Message> => {
         const formData = new FormData();
         formData.append('file', file);
-        return api.post(`/chat-rooms/${roomId}/messages/upload`, formData, {
+        return api.post(`/chat-rooms/${roomId}/messages/image`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
         });
     },
-    recallMessage: (messageId: number) => api.post(`/messages/${messageId}/recall`),
-    markAsRead: (messageId: number) => api.post(`/messages/${messageId}/read`),
-    getReadCount: (messageId: number) => api.get<number>(`/messages/${messageId}/read-count`),
+    recallMessage: (messageId: number): Promise<void> => 
+        api.delete(`/messages/${messageId}`),
+    markAsRead: (messageId: number): Promise<void> => 
+        api.post(`/messages/${messageId}/read`),
+    getReadCount: (messageId: number): Promise<number> => 
+        api.get(`/messages/${messageId}/read-count`),
 };
 
 // 成员管理相关API
@@ -166,12 +212,13 @@ export const memberApi = {
 
 // 通知相关API
 export const notificationApi = {
-    getNotifications: () => api.get<Notification[]>('/notifications'),
-    getUnreadCount: () => api.get<number>('/notifications/unread-count'),
-    markAsRead: (notificationId: number) => api.post(`/notifications/${notificationId}/read`),
-    markAllAsRead: () => api.post('/notifications/mark-all-read'),
-    deleteNotification: (notificationId: number) => api.delete(`/notifications/${notificationId}`),
-    deleteMultipleNotifications: (notificationIds: number[]) => api.post('/notifications/batch-delete', { notification_ids: notificationIds })
+    getNotifications: (): Promise<Notification[]> => api.get('/notifications'),
+    getUnreadCount: (): Promise<number> => api.get('/notifications/unread-count'),
+    markAsRead: (notificationId: number): Promise<void> => api.post(`/notifications/${notificationId}/read`),
+    markAllAsRead: (): Promise<void> => api.post('/notifications/mark-all-read'),
+    deleteNotification: (notificationId: number): Promise<void> => api.delete(`/notifications/${notificationId}`),
+    deleteMultipleNotifications: (notificationIds: number[]): Promise<void> => 
+        api.post('/notifications/batch-delete', { notification_ids: notificationIds })
 };
 
 export const userApi = {
@@ -179,7 +226,7 @@ export const userApi = {
         searchText?: string,
         offset: number = 0,
         limit: number = 10
-    ) => api.get<{ items: User[]; total: number }>(
+    ): Promise<{ items: User[]; total: number }> => api.get(
         '/users/search',
         { 
             params: { 
@@ -189,8 +236,8 @@ export const userApi = {
             } 
         }
     ),
-    getSuggestions: (searchText: string) => 
-        api.get<User[]>('/users/suggestions', { 
+    getSuggestions: (searchText: string): Promise<User[]> => 
+        api.get('/users/suggestions', { 
             params: { search_text: searchText } 
         }),
 };

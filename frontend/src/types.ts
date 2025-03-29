@@ -5,6 +5,7 @@ export interface MuteRecord {
     duration: number;  // 0 表示永久禁言
     start_time: string;
     end_time: string;
+    reason?: string;
 }
 
 export enum NotificationType {
@@ -69,6 +70,7 @@ export interface ChatRoom {
     created_at: string;
     updated_at: string;
     announcement_history?: AnnouncementHistory[];
+    max_members: number;
 }
 
 export interface SearchHistory {
@@ -85,4 +87,43 @@ export interface ChatRoomMember {
     is_admin: boolean;
     joined_at: string;
     user: User;
+}
+
+// 表单类型定义
+export interface LoginForm {
+    username: string;
+    password: string;
+}
+
+export interface RegisterForm {
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+}
+
+export interface ChatRoomForm {
+    name: string;
+    description?: string;
+    password?: string;
+    max_members: number;
+    is_private: boolean;
+}
+
+export interface MessageForm {
+    content: string;
+    message_type: 'text' | 'image';
+}
+
+// API 响应类型
+export interface ApiResponse<T> {
+    data: T;
+    message?: string;
+    status: number;
+}
+
+// WebSocket 消息类型
+export interface WebSocketMessage {
+    type: 'message' | 'typing' | 'notification' | 'system';
+    data: any;
 } 

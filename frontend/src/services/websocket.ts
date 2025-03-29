@@ -1,4 +1,4 @@
-import { Message } from '../types';
+import { Message, WebSocketMessage } from '../types';
 
 export class WebSocketService {
     private ws: WebSocket | null = null;
@@ -63,28 +63,34 @@ export class WebSocketService {
         }
     }
 
-    sendMessage(roomId: number, content: string) {
+    sendMessage(content: string, type: 'text' | 'image') {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
                 type: 'message',
                 data: {
-                    room_id: roomId,
-                    content: content
+                    content,
+                    message_type: type
                 }
             }));
         }
     }
 
-    sendTypingStatus(roomId: number, isTyping: boolean) {
+    sendTyping(isTyping: boolean) {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
                 type: 'typing',
                 data: {
-                    room_id: roomId,
                     is_typing: isTyping
                 }
             }));
         }
+    }
+
+    addTypingHandler(handler: (data: { room_id: number; user_id: number; is_typing: boolean }) => void) {
+        this.typingHandlers.push(handler);
+        return () => {
+            this.typingHandlers = this.typingHandlers.filter(h => h !== handler);
+        };
     }
 
     onMessage(handler: (message: Message) => void) {

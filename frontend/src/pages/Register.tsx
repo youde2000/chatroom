@@ -10,11 +10,26 @@ const Register: React.FC = () => {
 
     const onFinish = async (values: RegisterForm) => {
         try {
-            await authApi.register(values);
+            console.log('开始注册，提交的数据:', values);
+            await authApi.register(values.username, values.email, values.password);
             message.success('注册成功，请登录');
             navigate('/login');
-        } catch (error) {
-            message.error('注册失败，请稍后重试');
+        } catch (error: any) {
+            console.error('注册失败:', error);
+            if (error.response) {
+                // 服务器返回了错误响应
+                console.error('错误响应:', error.response.data);
+                const errorMessage = error.response.data.detail || '注册失败';
+                message.error(typeof errorMessage === 'string' ? errorMessage : '注册失败');
+            } else if (error.request) {
+                // 请求已发出但没有收到响应
+                console.error('没有收到响应:', error.request);
+                message.error('服务器无响应，请稍后重试');
+            } else {
+                // 请求配置出错
+                console.error('请求配置错误:', error.message);
+                message.error('请求配置错误');
+            }
         }
     };
 

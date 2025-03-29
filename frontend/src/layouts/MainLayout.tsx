@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Header, Dropdown, Space, Avatar, Menu, Button } from 'antd';
+import { Layout, Dropdown, Space, Avatar, Menu, Button } from 'antd';
 import { UserOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import NotificationCenter from '../components/NotificationCenter';
 import SearchModal from '../components/SearchModal';
 
 const { Content } = Layout;
+const { Header } = Layout;
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const navigate = useNavigate();

@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadCurrentUser = async () => {
         try {
             const response = await authApi.getCurrentUser();
-            setCurrentUser(response.data);
+            setCurrentUser(response);
         } catch (error) {
             console.error('Failed to load current user:', error);
             localStorage.removeItem('token');
@@ -33,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const login = async (username: string, password: string) => {
         const response = await authApi.login(username, password);
-        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('token', response.access_token);
         await loadCurrentUser();
     };
 

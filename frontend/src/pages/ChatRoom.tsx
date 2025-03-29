@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Layout, Input, Button, List, Avatar, Card, message, Modal, Upload, Dropdown, Menu, Form, InputNumber, Switch, Table, DatePicker, Select, Space, Badge, Alert } from 'antd';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Layout, Input, Button, List, Avatar, Card, message, Modal, Upload, Dropdown, Menu, Form, InputNumber, Switch, Table, DatePicker, Select, Space, Badge, Alert, Tooltip } from 'antd';
 import { SendOutlined, UserOutlined, PictureOutlined, TeamOutlined, MoreOutlined, CrownOutlined, DeleteOutlined, SettingOutlined, SwapOutlined, AudioMutedOutlined, AudioOutlined, HistoryOutlined, SearchOutlined, BellOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { chatRoomApi, messageApi, memberApi, authApi, notificationApi } from '../services/api';
@@ -7,133 +7,74 @@ import { Message, ChatRoom as ChatRoomType, User, ChatRoomForm, MuteRecord, Noti
 import MainLayout from '../components/Layout';
 import { WebSocketService } from '../services/websocket';
 import { useAuth } from '../hooks/useAuth';
+import { formatMessageTime } from '../utils/format';
 
 const { Content, Sider } = Layout;
 const { TextArea } = Input;
+const { RangePicker } = DatePicker;
 
 const ChatRoom: React.FC = () => {
     const { roomId } = useParams<{ roomId: string }>();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const [chatRoom, setChatRoom] = useState<ChatRoomType | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
-    const [members, setMembers] = useState<User[]>([]);
     const [inputValue, setInputValue] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [chatRoom, setChatRoom] = useState<ChatRoomType | null>(null);
+    const [members, setMembers] = useState<User[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isOwner, setIsOwner] = useState(false);
+    const [mutedUntil, setMutedUntil] = useState<string | null>(null);
+    const [announcement, setAnnouncement] = useState('');
+    const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
+    const [announcementInput, setAnnouncementInput] = useState('');
+    const [announcementHistory, setAnnouncementHistory] = useState<AnnouncementHistory[]>([]);
+    const [announcementHistoryVisible, setAnnouncementHistoryVisible] = useState(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set());
-    const [settingsVisible, setSettingsVisible] = useState(false);
-    const [form] = Form.useForm();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    const wsService = useRef<WebSocketService | null>(null);
-    const [mutedUsers, setMutedUsers] = useState<Set<number>>(new Set());
-    const [muteModalVisible, setMuteModalVisible] = useState(false);
-    const [selectedMember, setSelectedMember] = useState<User | null>(null);
-    const [muteForm] = Form.useForm();
     const [muteRecords, setMuteRecords] = useState<MuteRecord[]>([]);
-    const [muteHistoryVisible, setMuteHistoryVisible] = useState(false);
-    const [muteCheckInterval, setMuteCheckInterval] = useState<NodeJS.Timeout | null>(null);
+    const [mutedUsers, setMutedUsers] = useState<Set<number>>(new Set());
     const [muteFilter, setMuteFilter] = useState({
         searchText: '',
         dateRange: [null, null] as [Date | null, Date | null],
         status: 'all' as 'all' | 'active' | 'expired'
     });
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [muteHistoryVisible, setMuteHistoryVisible] = useState(false);
+    const [settingsVisible, setSettingsVisible] = useState(false);
     const [notificationVisible, setNotificationVisible] = useState(false);
-    const [announcement, setAnnouncement] = useState<string>('');
-    const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
-    const [announcementInput, setAnnouncementInput] = useState('');
-    const [announcementHistory, setAnnouncementHistory] = useState<AnnouncementHistory[]>([]);
-    const [announcementHistoryVisible, setAnnouncementHistoryVisible] = useState(false);
-    const [announcementHistoryLoading, setAnnouncementHistoryLoading] = useState(false);
-    const [announcementHistoryTotal, setAnnouncementHistoryTotal] = useState(0);
-    const [announcementHistoryPage, setAnnouncementHistoryPage] = useState(1);
+    const [muteModalVisible, setMuteModalVisible] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<User | null>(null);
     const [announcementHistoryFilter, setAnnouncementHistoryFilter] = useState({
         searchText: '',
         dateRange: [null, null] as [Date | null, Date | null],
         updatedById: undefined as number | undefined
     });
+    const [announcementHistoryLoading, setAnnouncementHistoryLoading] = useState(false);
+    const [announcementHistoryPage, setAnnouncementHistoryPage] = useState(1);
+    const [announcementHistoryTotal, setAnnouncementHistoryTotal] = useState(0);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const roomResponse = await chatRoomApi.getDetail(parseInt(roomId!));
-                setChatRoom(roomResponse);
-                
-                const messagesResponse = await messageApi.getMessages(parseInt(roomId!), 0, 50);
-                setMessages(messagesResponse);
-                
-                const membersResponse = await memberApi.getMembers(parseInt(roomId!));
-                setMembers(membersResponse);
+    const [settingsForm] = Form.useForm();
+    const [muteForm] = Form.useForm();
+    const wsService = useRef<WebSocketService | null>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout>();
+    const muteCheckInterval = useRef<NodeJS.Timeout>();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-                const muteRecordsResponse = await memberApi.getMuteRecords(parseInt(roomId!));
-                setMuteRecords(muteRecordsResponse);
-                
-                const notificationsResponse = await notificationApi.getNotifications();
-                setNotifications(notificationsResponse);
-                
-                // 启动禁言检查定时器
-                const interval = setInterval(() => {
-                    const now = new Date();
-                    const updatedMutedUsers = new Set<number>();
-                    membersResponse.forEach(member => {
-                        if (member.muted_until && new Date(member.muted_until) > now) {
-                            updatedMutedUsers.add(member.id);
-                        }
-                    });
-                    setMutedUsers(updatedMutedUsers);
-                }, 60000); // 每分钟检查一次
-
-                setMuteCheckInterval(interval);
-            } catch (error) {
-                message.error('获取数据失败');
-                navigate('/chat');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (roomId) {
-            fetchData();
-        }
-
-        // 初始化 WebSocket 连接
-        if (roomId) {
-            wsService.current = new WebSocketService(parseInt(roomId));
-            wsService.current.connect();
-        }
-
-        return () => {
-            if (muteCheckInterval) {
-                clearInterval(muteCheckInterval);
-            }
-            wsService.current?.disconnect();
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
-            }
-        };
-    }, [roomId, navigate]);
-
-    useEffect(() => {
-        if (roomId) {
-            loadAnnouncement();
-        }
-    }, [roomId]);
-
-    const loadAnnouncement = async () => {
+    const loadAnnouncement = useCallback(async () => {
         try {
-            const response = await chatRoomApi.getAnnouncement(roomId);
-            setAnnouncement(response.data.announcement || '');
+            if (!roomId) return;
+            const response = await chatRoomApi.getAnnouncement(parseInt(roomId));
+            setAnnouncement(response.announcement || '');
         } catch (error) {
             message.error('加载公告失败');
         }
-    };
+    }, [roomId]);
 
-    const loadAnnouncementHistory = async () => {
+    const loadAnnouncementHistory = useCallback(async () => {
         try {
+            if (!roomId) return;
             setAnnouncementHistoryLoading(true);
             const response = await chatRoomApi.getAnnouncementHistory(
-                parseInt(roomId!),
+                parseInt(roomId),
                 (announcementHistoryPage - 1) * 10,
                 10,
                 announcementHistoryFilter.searchText,
@@ -141,31 +82,86 @@ const ChatRoom: React.FC = () => {
                 announcementHistoryFilter.dateRange[1]?.toISOString(),
                 announcementHistoryFilter.updatedById
             );
-            setAnnouncementHistory(response.data.items);
-            setAnnouncementHistoryTotal(response.data.total);
+            setAnnouncementHistory(response.items);
+            setAnnouncementHistoryTotal(response.total);
         } catch (error) {
             message.error('加载公告历史失败');
         } finally {
             setAnnouncementHistoryLoading(false);
         }
-    };
+    }, [roomId, announcementHistoryPage, announcementHistoryFilter]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                if (!roomId) return;
+
+                const roomResponse = await chatRoomApi.getDetail(parseInt(roomId));
+                setChatRoom(roomResponse);
+                setIsAdmin(roomResponse.is_admin);
+                setIsOwner(roomResponse.is_owner);
+
+                const membersResponse = await memberApi.getMembers(parseInt(roomId));
+                setMembers(membersResponse);
+
+                const messagesResponse = await messageApi.getList(parseInt(roomId));
+                setMessages(messagesResponse);
+
+                const notificationsResponse = await notificationApi.getNotifications();
+                setNotifications(notificationsResponse);
+
+                // 启动禁言检查定时器
+                const interval = setInterval(() => {
+                    if (currentUser?.muted_until) {
+                        const mutedUntil = new Date(currentUser.muted_until);
+                        if (mutedUntil > new Date()) {
+                            setMutedUntil(currentUser.muted_until);
+                        } else {
+                            setMutedUntil(null);
+                        }
+                    }
+                }, 1000);
+
+                muteCheckInterval.current = interval;
+
+                // 初始化 WebSocket 连接
+                if (roomId) {
+                    wsService.current = new WebSocketService(localStorage.getItem('token') || '');
+                    wsService.current.connect();
+                }
+
+                return () => {
+                    if (muteCheckInterval.current) {
+                        clearInterval(muteCheckInterval.current);
+                    }
+                    if (wsService.current) {
+                        wsService.current.disconnect();
+                    }
+                };
+            } catch (error) {
+                message.error('加载数据失败');
+            }
+        };
+
+        loadData();
+    }, [roomId, currentUser, loadAnnouncement, loadAnnouncementHistory]);
+
+    useEffect(() => {
+        if (roomId) {
+            loadAnnouncement();
+        }
+    }, [roomId]);
 
     useEffect(() => {
         if (announcementHistoryVisible) {
-            setAnnouncementHistoryPage(1); // 重置页码
             loadAnnouncementHistory();
         }
-    }, [announcementHistoryVisible, announcementHistoryFilter]);
-
-    useEffect(() => {
-        if (announcementHistoryVisible) {
-            loadAnnouncementHistory();
-        }
-    }, [announcementHistoryPage]);
+    }, [announcementHistoryVisible]);
 
     const handleUpdateAnnouncement = async () => {
         try {
-            await chatRoomApi.updateAnnouncement(roomId, announcementInput);
+            if (!roomId) return;
+            await chatRoomApi.updateAnnouncement(parseInt(roomId), announcementInput);
             setAnnouncement(announcementInput);
             setIsEditingAnnouncement(false);
             message.success('公告更新成功');
@@ -240,9 +236,8 @@ const ChatRoom: React.FC = () => {
     };
 
     const handleImageUpload = async (file: File) => {
-        if (!roomId) return;
-
         try {
+            if (!roomId) return;
             const response = await messageApi.uploadImage(parseInt(roomId), file);
             wsService.current?.sendMessage(response.content, 'image');
             setMessages(prev => [...prev, response]);
@@ -311,7 +306,7 @@ const ChatRoom: React.FC = () => {
             const response = await chatRoomApi.update(parseInt(roomId), values);
             setChatRoom(response);
             setSettingsVisible(false);
-            form.resetFields();
+            settingsForm.resetFields();
             message.success('更新设置成功');
         } catch (error) {
             message.error('更新设置失败');
@@ -324,8 +319,7 @@ const ChatRoom: React.FC = () => {
         try {
             await memberApi.muteMember(parseInt(roomId), userId, duration);
             setMutedUsers(prev => {
-                const newSet = new Set<number>();
-                prev.forEach(id => newSet.add(id));
+                const newSet = new Set(prev);
                 newSet.add(userId);
                 return newSet;
             });
@@ -353,22 +347,19 @@ const ChatRoom: React.FC = () => {
         }
     };
 
-    const isOwner = currentUser?.id === chatRoom?.owner.id;
-    const isAdmin = currentUser?.is_admin || isOwner;
-
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     useEffect(() => {
         // 添加输入状态消息处理器
-        wsService.current?.addTypingHandler((userId: number, isTyping: boolean) => {
+        wsService.current?.addTypingHandler((data) => {
             setTypingUsers((prev: Set<number>) => {
                 const newSet = new Set(prev);
-                if (isTyping) {
-                    newSet.add(userId);
+                if (data.is_typing) {
+                    newSet.add(data.user_id);
                 } else {
-                    newSet.delete(userId);
+                    newSet.delete(data.user_id);
                 }
                 return newSet;
             });
@@ -593,7 +584,7 @@ const ChatRoom: React.FC = () => {
                                     <Button 
                                         icon={<SettingOutlined />}
                                         onClick={() => {
-                                            form.setFieldsValue({
+                                            settingsForm.setFieldsValue({
                                                 name: chatRoom.name,
                                                 description: chatRoom.description,
                                                 max_members: chatRoom.max_members,
@@ -709,7 +700,7 @@ const ChatRoom: React.FC = () => {
                         footer={null}
                     >
                         <Form
-                            form={form}
+                            form={settingsForm}
                             onFinish={handleUpdateSettings}
                             layout="vertical"
                         >

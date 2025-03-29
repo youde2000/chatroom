@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # 数据库配置
-    DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatroom"
+    DATABASE_URL: str = "postgres://postgres:123456@localhost:5432/chatroom"
     
     # JWT配置
     SECRET_KEY: str = "your-secret-key-here"  # 在生产环境中应该使用环境变量

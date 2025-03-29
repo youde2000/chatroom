@@ -1,55 +1,71 @@
-import React, { useState } from 'react';  // 添加 useState
+import React from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/api';
+import { authApi } from '../services/api';
+import { LoginForm } from '../types';
 
 const Login: React.FC = () => {
-    // 定义一个钩子，导航跳转
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);  // 添加loading状态
 
-    // 异步函数onFinish，用于处理登录表单提交后的逻辑，其参数values是一个对象，包含用户输入的username和password
-    const onFinish = async (values: { username: string; password: string }) => {
-        setLoading(true);  // -- 开始加载
+    const onFinish = async (values: LoginForm) => {
         try {
-            // 调用api.ts中的login异步函数，用于将用户输入的用户名和密码传递给后端服务器，await用于等待异步操作完成
-            const response = await login(values.username, values.password);
-            localStorage.setItem('token', response.access_token);
-            localStorage.setItem('username', values.username);
-            message.success('登录成功！');
-            navigate('/home');
+            const response = await authApi.login(values);
+            localStorage.setItem('token', response.data.access_token);
+            message.success('登录成功');
+            navigate('/chat');
         } catch (error) {
-            message.error('登录失败，请检查用户名和密码！');
-        } finally {
-            setLoading(false);  // -- 结束加载
+            message.error('登录失败，请检查用户名和密码');
         }
     };
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-            <Card title="用户登录" style={{ width: 300 }}>
-                <Form name="login" onFinish={onFinish}>
+        <div style={{ 
+            height: '100vh', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            background: '#f0f2f5'
+        }}>
+            <Card title="登录" style={{ width: 400 }}>
+                <Form
+                    name="login"
+                    onFinish={onFinish}
+                    autoComplete="off"
+                >
                     <Form.Item
                         name="username"
-                        rules={[{ required: true, message: '请输入用户名！' }]}
+                        rules={[{ required: true, message: '请输入用户名' }]}
                     >
-                        <Input prefix={<UserOutlined />} placeholder="用户名" disabled={loading} />
+                        <Input 
+                            prefix={<UserOutlined />} 
+                            placeholder="用户名" 
+                            size="large"
+                        />
                     </Form.Item>
+
                     <Form.Item
                         name="password"
-                        rules={[{ required: true, message: '请输入密码！' }]}
+                        rules={[{ required: true, message: '请输入密码' }]}
                     >
-                        <Input.Password prefix={<LockOutlined />} placeholder="密码" disabled={loading} />
+                        <Input.Password
+                            prefix={<LockOutlined />}
+                            placeholder="密码"
+                            size="large"
+                        />
                     </Form.Item>
+
                     <Form.Item>
-                        <Button type="primary" htmlType="submit" loading={loading} style={{ width: '100%' }}>
+                        <Button type="primary" htmlType="submit" block size="large">
                             登录
                         </Button>
-                        <Button type="link" onClick={() => navigate('/register')} disabled={loading} style={{ width: '100%' }}>
-                            还没有账号？去注册
-                        </Button>
                     </Form.Item>
+
+                    <div style={{ textAlign: 'center' }}>
+                        <Button type="link" onClick={() => navigate('/register')}>
+                            还没有账号？立即注册
+                        </Button>
+                    </div>
                 </Form>
             </Card>
         </div>

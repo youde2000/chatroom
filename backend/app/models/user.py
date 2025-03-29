@@ -1,9 +1,12 @@
 from enum import Enum
 import uuid
-
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from tortoise import fields, models
 from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.validators import RegexValidator
+from app.database import Base
 
 
 class Gender(str, Enum):
@@ -11,45 +14,26 @@ class Gender(str, Enum):
     FEMALE = "female"
 
 
-class User(models.Model):
-    id = fields.UUIDField(
-        pk=True,
-        default=uuid.uuid4,
-        description="用户id",
-        unique=True  # 确保数据库层面的唯一性约束
-    )
-    username = fields.CharField(max_length=50, unique=True)
-    password = fields.CharField(max_length=128)
-    email = fields.CharField(
-        max_length=128,
-        validators=[
-            RegexValidator(
-                pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
-                flags=0  # 显式传递 flags 参数
-            )
-        ]
-    )
-    gender = fields.CharEnumField(
-        enum_type=Gender,
-        default=Gender.MALE,
-        description="用户性别",
-        max_length=4
-    )
-    avatar = fields.CharField(
-        max_length=128, 
-        default="/static/avatars/default.png", 
-        null=True, 
-        blank=True,
-        description="用户头像"
-    )
-    created_at = fields.DatetimeField(auto_now_add=True)
-    modified_at = fields.DatetimeField(auto_now=True)
+class User(Base):
+    __tablename__ = "users"
 
-    class Meta:
-        table = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    avatar = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    muted_until = Column(DateTime, nullable=True)
+
+    notifications = relationship("Notification", back_populates="user")
+    owned_rooms = relationship("ChatRoom", back_populates="owner")
+    member_rooms = relationship("ChatRoomMember", back_populates="user")
 
     def __str__(self):
-        return self.username
+        return f"{self.username}"
 
 
 # 创建 Pydantic 模型
